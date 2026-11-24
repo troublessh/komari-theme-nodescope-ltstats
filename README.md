@@ -14,12 +14,12 @@ An LTstats-style theme for [Komari Monitor](https://github.com/komari-monitor/ko
 
 ## 安装 / Install
 
-**方法一（推荐）**：到 [Releases](https://github.com/troublessh/komari-theme-nodescope-ltstats/releases) 下载 `nodescope-komari.zip`，在 Komari 后台的主题管理里导入，然后切换到 NodeScope。
+**方法一（推荐）**：到 [Releases](https://github.com/troublessh/komari-theme-nodescope-ltstats/releases) 下载 `komari-theme-nodescope-ltstats-v1.0.1.zip`，在 Komari 后台的主题管理里导入，然后切换到 NodeScope。
 
 **方法二（手动打包）**：克隆本仓库后，在仓库根目录执行：
 
 ```bash
-zip -r nodescope-komari.zip komari-theme.json dist
+zip -r komari-theme-nodescope-ltstats-v1.0.1.zip komari-theme.json dist
 ```
 
 得到同样的主题包，再按方法一导入。
