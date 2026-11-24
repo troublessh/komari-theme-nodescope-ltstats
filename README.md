@@ -23,6 +23,7 @@ The theme declares Komari managed configuration (Komari ≥ 1.0.5) in `komari-th
 | --- | --- |
 | 延迟取值方式 `latency_mode` | `avg` 该节点全部测速任务最新值的平均（默认）；`primary` 只显示下方选定的主任务；`latest` 最近一条真实测速记录；`window` 时间窗口内真实记录的平均 |
 | 主显示任务 `latency_primary_task` | `primary` 模式下生效（取第一个选中的任务）；没有该任务的节点回退到 `avg` |
+| IPv4 任务 `latency_tasks_v4` / IPv6 任务 `latency_tasks_v6` | 在此归类的任务在 LATENCY 格里分 v4 / v6 两行显示（各自独立按取值方式计算）；任务名含 `v4`/`IPv4` 或 `v6`/`IPv6` 也会自动识别。未归类时全部任务合并为一个值显示 |
 | 窗口时长 `latency_window_minutes` | `window` 模式下生效，1–60 分钟，默认 10 |
 | 绿色阈值 `latency_green_below` | 延迟低于此值显示绿点，默认 100（ms） |
 | 黄色阈值 `latency_amber_below` | 延迟低于此值显示黄点、否则红点，默认 200（ms） |
