@@ -64,6 +64,12 @@ header{padding-bottom:16px}.brand{display:flex;align-items:center;gap:10px}.bran
 .toolbar{flex-wrap:wrap;gap:9px;margin:16px 0 12px}.toolbar input{width:210px}.hint{font-size:11px}
 .view-toggle{display:inline-flex;gap:0;margin-left:auto}.view-toggle button{display:flex;align-items:center;gap:6px;border-color:var(--line);padding:5px 10px;font-size:11px;letter-spacing:.03em;color:var(--muted)}.view-toggle button+button{border-left:0}.view-toggle button[aria-pressed=true]{color:var(--green);background:#85d9960d;box-shadow:inset 0 -1px var(--green)}.view-toggle svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.4}
 #card-sort{display:flex;align-items:center;gap:8px;margin:0 0 12px;font-size:11px;color:var(--muted)}
+#metric-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;font-size:11px;color:var(--muted)}
+#metric-filters .mf-label{letter-spacing:.03em}
+#metric-filters label{display:inline-flex;align-items:center;gap:5px}
+#metric-filters input{width:64px;padding:4px 6px}
+#metric-filters input.active{border-color:var(--green);color:var(--green)}
+#mf-clear{padding:4px 8px;font-size:11px}
 #card-sort select{font:inherit;color:var(--fg);background:#141815;border:1px solid var(--line);border-radius:0;padding:4px 8px;max-width:100%;min-width:0}#card-sort button{padding:4px 8px;font-size:11px;min-width:90px}#card-sort .card-count{margin-left:auto}
 #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,310px),1fr));gap:12px}
 .server-card{display:flex;flex-direction:column;min-width:0;border:1px solid var(--line);padding:15px 16px 13px;background:#141815;min-height:335px;transition:border-color .12s}
@@ -117,6 +123,7 @@ header{padding-bottom:16px}.brand{display:flex;align-items:center;gap:10px}.bran
 <div class="overview-item"><span class="overview-label">ALL-TIME TRAFFIC</span><div id="overview-traffic" class="overview-main">—</div><div class="overview-sub">Receive / transmit</div></div>
 </section>
 <div class="toolbar"><button id="refresh" type="button">Refresh</button><input type="search" placeholder="Filter by name…" aria-label="Filter monitors by name" id="filter"><span class="hint">Select a server for full statistics.</span><div class="view-toggle" role="group" aria-label="Monitor display mode"><button id="btn-view-list" type="button" aria-pressed="true" aria-controls="list" title="List view"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg>LIST</button><button id="btn-view-windows" type="button" aria-pressed="false" aria-controls="cards" title="Window view"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></svg>CARD</button></div></div>
+<div id="metric-filters" aria-label="Metric filters"><span class="mf-label">FILTER</span><label>CPU% ≥ <input id="mf-cpu" type="number" min="0" max="100" step="1" inputmode="decimal" placeholder="0"></label><label>RAM% ≥ <input id="mf-ram" type="number" min="0" max="100" step="1" inputmode="decimal" placeholder="0"></label><label>UPTIME ≥ <input id="mf-up" type="number" min="0" step="1" inputmode="numeric" placeholder="0"> d</label><button id="mf-clear" type="button" hidden>Clear</button></div>
 <div id="card-sort" hidden><label for="sort-field">SORT</label><select id="sort-field" aria-label="Sort windows"></select><button id="sort-direction" type="button">ASC ↑</button><span class="card-count">Live trends start when this page opens.</span></div>
 <div id="error" class="error" role="alert" hidden>Fetching data failed. Displayed values may be out of date.</div>
 <div id="list"><div class="loading">Loading monitors…</div></div>
@@ -231,6 +238,7 @@ async function loadStatus() {
    Komari has no iowait / steal / disk-IO rates: the LTstats IOWAIT% and STEAL%
    columns are merged into LOAD, the IO column becomes cumulative TRAFFIC. */
 var monitors = [], sortColumn = 'name', sortDirection = 'asc', filter = '', pending = false;
+var mfCpu = null, mfRam = null, mfUp = null;
 var viewMode = 'list', sampleHistory = new Map();
 var columns = [['name','NAME'],['cpu','CPU'],['cores','CORES'],['ram','RAM'],['uptime','UPTIME'],['cpuPct','CPU%'],['load','LOAD'],['ramPct','RAM%'],['swapPct','SWAP%'],['diskPct','DISK%'],['net','NET'],['traffic','TRAFFIC']];
 var sortFields = new Set(['name','cpu','cores','ram','uptime','cpuPct','load','ramPct','swapPct','diskPct','netIn','netOut','trafficDown','trafficUp']);
@@ -467,6 +475,9 @@ function updateHash() {
   var hash = new URLSearchParams();
   if (sortColumn !== 'name' || sortDirection !== 'asc') hash.set('sort',sortDirection+':'+sortColumn);
   if (filter) hash.set('filter',filter);
+  if (mfCpu !== null) hash.set('fcpu',mfCpu);
+  if (mfRam !== null) hash.set('fram',mfRam);
+  if (mfUp !== null) hash.set('fup',mfUp);
   history.replaceState(null,'',window.location.pathname+window.location.search+(hash.size ? '#'+hash.toString().replace('%3A',':') : ''));
 }
 function sortTable(field) {
@@ -475,15 +486,35 @@ function sortTable(field) {
   if (viewMode === 'windows') { displayWindows(); applyFilter(); } else sortTableDOM();
   updateSortIndicators(); updateHash();
 }
+function metricFiltersActive() { return mfCpu !== null || mfRam !== null || mfUp !== null; }
+function passesFilter(r) {
+  if (!String(r.name).toLowerCase().includes(filter)) return false;
+  if (!metricFiltersActive()) return true;
+  if (!r.online) return false;
+  if (mfCpu !== null && !(valid(r.cpuPct) && r.cpuPct >= mfCpu)) return false;
+  if (mfRam !== null && !(valid(r.ramPct) && r.ramPct >= mfRam)) return false;
+  if (mfUp !== null && !(valid(r.uptime) && r.uptime >= mfUp * 86400)) return false;
+  return true;
+}
 function applyFilter() {
-  var names = new Map(monitors.map(r => [r.uuid,String(r.name).toLowerCase()])), shown = 0;
+  var byId = new Map(monitors.map(r => [r.uuid,r])), shown = 0;
   document.querySelectorAll('#list tbody tr[data-monitor], #cards .server-card[data-monitor]').forEach(group => {
-    group.hidden = !(names.get(group.dataset.monitor) || '').includes(filter);
+    var r = byId.get(group.dataset.monitor);
+    group.hidden = !r || !passesFilter(r);
     if (!group.hidden) ++shown;
   });
   $('empty-filter').hidden = !monitors.length || shown > 0;
   // As in the original page, totals describe the complete monitor set.
-  $('count').textContent = 'MONITORS: '+monitors.length+' | OFFLINE: '+monitors.filter(r => !r.online).length+(filter ? ' | SHOWN: '+shown : '');
+  $('count').textContent = 'MONITORS: '+monitors.length+' | OFFLINE: '+monitors.filter(r => !r.online).length+((filter || metricFiltersActive()) ? ' | SHOWN: '+shown : '');
+  $('mf-clear').hidden = !metricFiltersActive();
+}
+function updateMetricFilters() {
+  var parse = (id,max) => { var v = parseFloat($(id).value); if (!Number.isFinite(v) || v <= 0) return null; return max ? Math.min(max,v) : v; };
+  mfCpu = parse('mf-cpu',100); mfRam = parse('mf-ram',100); mfUp = parse('mf-up',0);
+  $('mf-cpu').classList.toggle('active',mfCpu !== null);
+  $('mf-ram').classList.toggle('active',mfRam !== null);
+  $('mf-up').classList.toggle('active',mfUp !== null);
+  applyFilter(); updateHash();
 }
 function updateFilter(value) { filter = value.toLowerCase(); applyFilter(); updateHash(); }
 var tickCount = 0;
@@ -690,6 +721,11 @@ function initList() {
   if (match && sortFields.has(match[2])) { sortDirection = match[1]; sortColumn = match[2]; }
   filter = (hash.get('filter') || '').toLowerCase(); $('filter').value = hash.get('filter') || '';
   $('filter').addEventListener('input',event => updateFilter(event.target.value));
+  var mfInit = (id,key,max) => { var v = parseFloat(hash.get(key)); if (Number.isFinite(v) && v > 0) $(id).value = max ? Math.min(max,v) : v; };
+  mfInit('mf-cpu','fcpu',100); mfInit('mf-ram','fram',100); mfInit('mf-up','fup',0);
+  ['mf-cpu','mf-ram','mf-up'].forEach(id => $(id).addEventListener('input',updateMetricFilters));
+  $('mf-clear').addEventListener('click',() => { $('mf-cpu').value = ''; $('mf-ram').value = ''; $('mf-up').value = ''; updateMetricFilters(); });
+  updateMetricFilters();
   $('refresh').addEventListener('click',fetchData);
   $('btn-view-list').addEventListener('click',() => setView('list'));
   $('btn-view-windows').addEventListener('click',() => setView('windows'));
