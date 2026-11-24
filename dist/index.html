@@ -70,13 +70,19 @@ header{padding-bottom:16px}.brand{display:flex;align-items:center;gap:10px}.bran
 #metric-filters input{width:64px;padding:4px 6px}
 #metric-filters input.active{border-color:var(--green);color:var(--green)}
 #mf-clear{padding:4px 8px;font-size:11px}
-#card-sort select{font:inherit;color:var(--fg);background:#141815;border:1px solid var(--line);border-radius:0;padding:4px 8px;max-width:100%;min-width:0}#card-sort button{padding:4px 8px;font-size:11px;min-width:90px}#card-sort .card-count{margin-left:auto}
+#card-sort .cs-label{letter-spacing:.03em}
+.cs-btns{display:inline-flex;flex-wrap:wrap;gap:6px}
+.cs-btns button{padding:5px 10px;font-size:11px;letter-spacing:.03em;color:var(--muted)}
+.cs-btns button:hover{color:var(--fg)}
+.cs-btns button[aria-pressed="true"]{color:var(--green);border-color:var(--green);background:#85d9960d}
+.cs-btns button .dir{color:var(--green)}
+#card-sort .card-count{margin-left:auto}
 #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,310px),1fr));gap:12px}
-.server-card{display:flex;flex-direction:column;min-width:0;border:1px solid var(--line);padding:15px 16px 13px;background:#141815;min-height:335px;transition:border-color .12s}
+.server-card{display:flex;flex-direction:column;min-width:0;border:1px solid var(--line);padding:15px 16px 13px;background:#141815;min-height:360px;transition:border-color .12s}
 .server-card:hover{text-decoration:none;border-color:#85d99680}.server-card:focus-visible{outline:1px solid var(--green);outline-offset:3px}.server-card.offline{border-color:#ed858550;background:#181514}
 .window-title{display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:10px;min-width:0}.window-name{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.window-open{margin-left:auto;color:var(--muted);font-size:14px}
 .window-cpu{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:10px}
-.window-meta{display:grid;grid-template-columns:.7fr .9fr 1fr;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:10px}.window-meta dt{font-size:9px;letter-spacing:.055em;color:var(--muted)}.window-meta dd{margin:2px 0 0;font-size:12px}
+.window-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:10px}.window-meta dt{font-size:9px;letter-spacing:.055em;color:var(--muted)}.window-meta dd{margin:2px 0 0;font-size:12px}.window-meta dd.kernel{font-size:11px;overflow-wrap:anywhere}
 .usage-items{display:grid;gap:8px}.usage-head{display:flex;justify-content:space-between;font-size:11px;gap:8px}.usage-head>span:first-child{color:var(--muted);font-size:10px}.usage-track{height:3px;background:#29312c;margin-top:3px}.usage-fill{display:block;height:100%;background:currentColor}
 .window-waits{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:10px;margin:9px 0}.window-waits b{font-weight:400;color:var(--fg)}
 .window-rates{font-size:11px;border-top:1px solid var(--line);padding-top:9px;display:grid;gap:4px}.window-rates>div{display:flex;justify-content:space-between;gap:10px}.window-rates .label{color:var(--muted);font-size:10px}
@@ -124,7 +130,7 @@ header{padding-bottom:16px}.brand{display:flex;align-items:center;gap:10px}.bran
 </section>
 <div class="toolbar"><button id="refresh" type="button">Refresh</button><input type="search" placeholder="Filter by name…" aria-label="Filter monitors by name" id="filter"><span class="hint">Select a server for full statistics.</span><div class="view-toggle" role="group" aria-label="Monitor display mode"><button id="btn-view-list" type="button" aria-pressed="true" aria-controls="list" title="List view"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg>LIST</button><button id="btn-view-windows" type="button" aria-pressed="false" aria-controls="cards" title="Window view"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></svg>CARD</button></div></div>
 <div id="metric-filters" aria-label="Metric filters"><span class="mf-label">FILTER</span><label>CPU% ≥ <input id="mf-cpu" type="number" min="0" max="100" step="1" inputmode="decimal" placeholder="0"></label><label>RAM% ≥ <input id="mf-ram" type="number" min="0" max="100" step="1" inputmode="decimal" placeholder="0"></label><label>UPTIME ≥ <input id="mf-up" type="number" min="0" step="1" inputmode="numeric" placeholder="0"> d</label><button id="mf-clear" type="button" hidden>Clear</button></div>
-<div id="card-sort" hidden><label for="sort-field">SORT</label><select id="sort-field" aria-label="Sort windows"></select><button id="sort-direction" type="button">ASC ↑</button><span class="card-count">Live trends start when this page opens.</span></div>
+<div id="card-sort" hidden><span class="cs-label">SORT BY:</span><div class="cs-btns" role="group" aria-label="Sort windows"><button type="button" data-sort-field="name" aria-pressed="true">Name</button><button type="button" data-sort-field="uptime" aria-pressed="false">Uptime</button><button type="button" data-sort-field="cpuPct" aria-pressed="false">CPU %</button><button type="button" data-sort-field="ramPct" aria-pressed="false">RAM %</button><button type="button" data-sort-field="diskPct" aria-pressed="false">Disk %</button><button type="button" data-sort-field="netIn" aria-pressed="false">Net RX</button><button type="button" data-sort-field="netOut" aria-pressed="false">Net TX</button></div><span class="card-count">Live trends start when this page opens.</span></div>
 <div id="error" class="error" role="alert" hidden>Fetching data failed. Displayed values may be out of date.</div>
 <div id="list"><div class="loading">Loading monitors…</div></div>
 <div id="cards" aria-label="Server windows" hidden></div>
@@ -426,7 +432,7 @@ function windowHTML(row) {
   var down = !row.online, href = '/monitor/'+encodeURIComponent(row.uuid);
   var title = '<div class="window-title"><span class="status-dot" role="img" aria-label="'+(down ? 'Offline' : 'Online')+'"></span><span class="window-name">'+escapeHTML(row.name)+'</span><span class="window-open" aria-hidden="true"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M4 12 12 4M5 4h7v7"/></svg></span></div>';
   var inner = down ? '<div class="offline-body"><strong>'+offlineString(row.offlineSeconds)+'</strong><p>Current readings are unavailable. Historical statistics remain accessible.</p></div><div class="offline-history">View historical statistics →</div>' :
-    '<div class="window-cpu" title="'+escapeHTML(available(row.cpuName) ? row.cpuName : '')+'">'+escapeHTML(compactCPU(row.cpuName))+'</div><dl class="window-meta"><div><dt>CORES</dt><dd>'+(valid(row.cores) ? row.cores : '—')+'</dd></div><div><dt>RAM</dt><dd>'+formatBytes(row.ramTotal)+'</dd></div><div><dt>UPTIME</dt><dd>'+formatUptime(row.uptime)+'</dd></div></dl><div class="usage-items">'+usageHTML('CPU',row.cpuPct)+usageHTML('RAM',row.ramPct)+usageHTML('DISK',row.diskPct)+'</div><div class="window-waits"><span>LOAD 1M <b>'+(valid(row.load) ? row.load.toFixed(2) : '—')+'</b></span><span>5M <b>'+(valid(row.load5) ? row.load5.toFixed(2) : '—')+'</b></span><span>15M <b>'+(valid(row.load15) ? row.load15.toFixed(2) : '—')+'</b></span></div><div class="window-rates"><div><span class="label">NET</span><span>'+pairedRate(row.netIn,row.netOut,'↓','↑')+'</span></div><div><span class="label">TRAFFIC</span><span>'+pairedBytes(row.trafficDown,row.trafficUp,'↓','↑')+'</span></div></div>'+trendHTML(row);
+    '<div class="window-cpu" title="'+escapeHTML(available(row.cpuName) ? row.cpuName : '')+'">'+escapeHTML(compactCPU(row.cpuName))+'</div><dl class="window-meta"><div><dt>CORES</dt><dd>'+(valid(row.cores) ? row.cores : '—')+'</dd></div><div><dt>RAM</dt><dd>'+formatBytes(row.ramTotal)+'</dd></div><div><dt>UPTIME</dt><dd>'+formatUptime(row.uptime)+'</dd></div><div><dt>KERNEL</dt><dd class="kernel">'+escapeHTML(available(row.kernel) ? row.kernel : '—')+'</dd></div></dl><div class="usage-items">'+usageHTML('CPU',row.cpuPct)+usageHTML('RAM',row.ramPct)+usageHTML('DISK',row.diskPct)+'</div><div class="window-waits"><span>LOAD 1M <b>'+(valid(row.load) ? row.load.toFixed(2) : '—')+'</b></span><span>5M <b>'+(valid(row.load5) ? row.load5.toFixed(2) : '—')+'</b></span><span>15M <b>'+(valid(row.load15) ? row.load15.toFixed(2) : '—')+'</b></span></div><div class="window-rates"><div><span class="label">NET</span><span>'+pairedRate(row.netIn,row.netOut,'↓','↑')+'</span></div><div><span class="label">TRAFFIC</span><span>'+pairedBytes(row.trafficDown,row.trafficUp,'↓','↑')+'</span></div></div>'+trendHTML(row);
   return '<a class="server-card'+(down ? ' offline' : '')+'" data-monitor="'+escapeHTML(row.uuid)+'" href="'+href+'">'+title+inner+'</a>';
 }
 function displayWindows() {
@@ -458,9 +464,12 @@ function sortTableDOM() {
   monitors.slice().sort(compareMonitors).forEach(row => { var el = rows.get(row.uuid); if (el) body.appendChild(el); });
 }
 function updateSortIndicators() {
-  $('sort-field').value = sortColumn;
-  $('sort-direction').textContent = sortDirection === 'asc' ? 'ASC ↑' : 'DESC ↓';
-  $('sort-direction').setAttribute('aria-label',sortDirection === 'asc' ? 'Ascending order; switch to descending' : 'Descending order; switch to ascending');
+  var csLabels = {name:'Name',uptime:'Uptime',cpuPct:'CPU %',ramPct:'RAM %',diskPct:'Disk %',netIn:'Net RX',netOut:'Net TX'};
+  document.querySelectorAll('#card-sort [data-sort-field]').forEach(btn => {
+    var f = btn.dataset.sortField, active = f === sortColumn;
+    btn.setAttribute('aria-pressed',String(active));
+    btn.innerHTML = escapeHTML(csLabels[f] || f)+(active ? ' <span class="dir">'+(sortDirection === 'asc' ? '▲' : '▼')+'</span>' : '');
+  });
   document.querySelectorAll('[data-sort]').forEach(button => {
     button.classList.remove('sort-asc','sort-desc');
     if (button.dataset.sort === sortColumn) button.classList.add('sort-'+sortDirection);
@@ -729,14 +738,13 @@ function initList() {
   $('refresh').addEventListener('click',fetchData);
   $('btn-view-list').addEventListener('click',() => setView('list'));
   $('btn-view-windows').addEventListener('click',() => setView('windows'));
-  var choices = [['name','Name'],['cpu','CPU model'],['cores','Cores'],['ram','RAM capacity'],['uptime','Uptime'],['cpuPct','CPU usage'],['load','Load'],['ramPct','RAM usage'],['swapPct','Swap usage'],['diskPct','Disk usage'],['netIn','Network RX'],['netOut','Network TX'],['trafficDown','Traffic download'],['trafficUp','Traffic upload']];
-  if (!choices.some(([field]) => field === sortColumn)) choices.push([sortColumn,'Saved sort field']);
-  $('sort-field').innerHTML = choices.map(([field,label]) => '<option value="'+field+'">'+label+'</option>').join('');
-  $('sort-field').addEventListener('change',event => {
-    sortColumn = event.target.value; sortDirection = 'asc';
-    displayWindows(); applyFilter(); updateHash();
-  });
-  $('sort-direction').addEventListener('click',() => sortTable(sortColumn));
+  document.querySelectorAll('#card-sort [data-sort-field]').forEach(btn => btn.addEventListener('click',() => {
+    var f = btn.dataset.sortField;
+    if (sortColumn === f) sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    else { sortColumn = f; sortDirection = f === 'name' ? 'asc' : 'desc'; }
+    if (viewMode === 'windows') { displayWindows(); applyFilter(); } else sortTableDOM();
+    updateSortIndicators(); updateHash();
+  }));
   updateSortIndicators();
   $('list').addEventListener('click',event => { var button = event.target.closest('button[data-sort]'); if (button) sortTable(button.dataset.sort); });
   loadPublic().catch(() => {});
