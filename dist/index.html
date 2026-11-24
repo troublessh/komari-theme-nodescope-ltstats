@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Komari Monitor</title>
+<meta name="description" content="A simple server monitor tool.">
+<style>
+:root{color-scheme:dark;--bg:#101214;--fg:#d8ded9;--muted:#87928c;--line:#2c3430;--green:#85d996;--amber:#e4bb72;--red:#ed8585}
+*{box-sizing:border-box}
+body{margin:0;padding:24px;background:var(--bg);color:var(--fg);font:13px/1.6 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;font-variant-numeric:tabular-nums}
+button,input{font:inherit;color:inherit;background:transparent;border:1px solid var(--line);border-radius:0}
+button{cursor:pointer;padding:4px 9px}button:hover{color:var(--green)}
+a{color:inherit;text-decoration:none}a:hover{text-decoration:underline}
+a:focus-visible,input:focus-visible,button:focus-visible{outline:1px solid var(--green);outline-offset:3px}
+.dashboard{max-width:1600px;margin:auto}
+header{display:flex;align-items:center;gap:18px;border-bottom:1px solid var(--line);padding-bottom:14px}
+h1{font-size:19px;font-weight:600;margin:0;letter-spacing:.02em}
+#page-name{color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.live,.green{color:var(--green)}.orange{color:var(--amber)}.red{color:var(--red)}
+.admin{margin-left:auto;color:var(--muted)}
+.toolbar{display:flex;align-items:center;gap:12px;margin:16px 0}
+.toolbar input{padding:4px 8px;width:220px;max-width:100%;min-width:0}
+.hint,#last,.muted{color:var(--muted)}
+#list{overflow-x:auto;border:1px solid var(--line);scrollbar-width:thin;scrollbar-color:var(--line) var(--bg)}
+table{border-collapse:collapse;width:100%;min-width:1210px;text-align:left;white-space:nowrap}
+th{padding:9px 12px;font-weight:400;color:var(--muted);background:#191e1b;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,th:nth-child(2){text-align:left}
+th button{padding:0;border:0;font-size:11px;letter-spacing:.025em}
+th button:hover{color:var(--fg)}
+.header-pair{display:inline-flex;gap:8px;align-items:center}
+.header-pair>span{font-size:11px;letter-spacing:.025em}
+.header-pair button{font-size:12px}
+td{height:37px;padding:7px 12px;text-align:right;border-bottom:1px solid #252c28}
+td:first-child,td.cpu{text-align:left}
+td:first-child{font-weight:600;min-width:100px}
+td.cpu{max-width:220px;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+td.rate{font-size:12px;min-width:168px}
+tbody tr:nth-child(even){background:#ffffff02}tbody tr:hover{background:#ffffff06}
+tbody tr:last-child td{border-bottom:0}
+.name-link{display:flex;align-items:center;gap:9px;max-width:180px;width:fit-content}
+.name-text{overflow:hidden;text-overflow:ellipsis}
+.status-dot{display:inline-block;flex:none;width:6px;height:6px;border-radius:50%;background:var(--green)}
+.offline .status-dot{background:var(--red)}
+.offline td{color:var(--muted)}.offline-message{text-align:left;color:var(--red)!important;font-size:12px}
+.sort-asc::after{content:' ▴';color:var(--green)}.sort-desc::after{content:' ▾';color:var(--green)}
+tfoot td{font-size:12px;color:var(--muted);border-top:1px solid var(--line);border-bottom:0;background:#191e1b}
+tfoot td:first-child{font-size:11px}
+.info,.loading{padding:28px 14px;color:var(--muted)}
+.error{border:1px solid var(--red);color:var(--red);padding:10px;margin:12px 0}
+[hidden]{display:none!important}
+.bottom{display:flex;flex-wrap:wrap;gap:8px 24px;padding:15px 0;color:var(--muted);font-size:11px}
+#traffic{font-size:11px;color:var(--muted);padding-bottom:8px}
+footer{text-align:center;font-size:11px;color:var(--muted);margin-top:24px}
+#empty-filter{padding:18px 0;color:var(--muted)}
+@media(max-width:720px){body{padding:16px 12px}header{gap:12px;flex-wrap:wrap}h1{font-size:17px}.toolbar{flex-wrap:wrap}.toolbar input{flex:1}.hint{display:none}.admin{font-size:11px}th,td{padding-left:10px;padding-right:10px}th:first-child,td:first-child{position:sticky;left:0;z-index:1;background:var(--bg);border-right:1px solid var(--line)}th:first-child{background:#191e1b}tfoot td:first-child{background:#191e1b}}
+
+/* Compact overview and optional window view; list remains the initial view. */
+header{padding-bottom:16px}.brand{display:flex;align-items:center;gap:10px}.brand-mark{display:inline-grid;place-items:center;width:27px;height:27px;border:1px solid var(--line);color:var(--green);font-size:18px;font-weight:600;line-height:1}
+#page-name{margin:5px 0 18px}header #live{margin-left:3px;font-size:11px}
+.overview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);background:#141815;margin:16px 0 18px}
+.overview-item{padding:12px 16px;min-width:0;border-right:1px solid var(--line)}.overview-item:last-child{border-right:0}
+.overview-label{display:block;color:var(--muted);font-size:10px;letter-spacing:.08em;margin-bottom:4px}.overview-main{font-size:13px;overflow-wrap:anywhere}.overview-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.toolbar{flex-wrap:wrap;gap:9px;margin:16px 0 12px}.toolbar input{width:210px}.hint{font-size:11px}
+.view-toggle{display:inline-flex;gap:0;margin-left:auto}.view-toggle button{display:flex;align-items:center;gap:6px;border-color:var(--line);padding:5px 10px;font-size:11px;letter-spacing:.03em;color:var(--muted)}.view-toggle button+button{border-left:0}.view-toggle button[aria-pressed=true]{color:var(--green);background:#85d9960d;box-shadow:inset 0 -1px var(--green)}.view-toggle svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.4}
+#card-sort{display:flex;align-items:center;gap:8px;margin:0 0 12px;font-size:11px;color:var(--muted)}
+#card-sort select{font:inherit;color:var(--fg);background:#141815;border:1px solid var(--line);border-radius:0;padding:4px 8px;max-width:100%;min-width:0}#card-sort button{padding:4px 8px;font-size:11px;min-width:90px}#card-sort .card-count{margin-left:auto}
+#cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,310px),1fr));gap:12px}
+.server-card{display:flex;flex-direction:column;min-width:0;border:1px solid var(--line);padding:15px 16px 13px;background:#141815;min-height:335px;transition:border-color .12s}
+.server-card:hover{text-decoration:none;border-color:#85d99680}.server-card:focus-visible{outline:1px solid var(--green);outline-offset:3px}.server-card.offline{border-color:#ed858550;background:#181514}
+.window-title{display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:10px;min-width:0}.window-name{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.window-open{margin-left:auto;color:var(--muted);font-size:14px}
+.window-cpu{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:10px}
+.window-meta{display:grid;grid-template-columns:.7fr .9fr 1fr;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:10px}.window-meta dt{font-size:9px;letter-spacing:.055em;color:var(--muted)}.window-meta dd{margin:2px 0 0;font-size:12px}
+.usage-items{display:grid;gap:8px}.usage-head{display:flex;justify-content:space-between;font-size:11px;gap:8px}.usage-head>span:first-child{color:var(--muted);font-size:10px}.usage-track{height:3px;background:#29312c;margin-top:3px}.usage-fill{display:block;height:100%;background:currentColor}
+.window-waits{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:10px;margin:9px 0}.window-waits b{font-weight:400;color:var(--fg)}
+.window-rates{font-size:11px;border-top:1px solid var(--line);padding-top:9px;display:grid;gap:4px}.window-rates>div{display:flex;justify-content:space-between;gap:10px}.window-rates .label{color:var(--muted);font-size:10px}
+.trend{margin-top:10px;padding-top:7px;border-top:1px solid var(--line)}.trend-head{display:flex;gap:9px;align-items:center;color:var(--muted);font-size:9px;letter-spacing:.04em}.trend-head .legend{margin-left:auto}.legend-cpu{color:var(--green)}.legend-ram{color:#80c9c1}.trend svg{width:100%;height:34px;display:block;margin-top:4px}.trend .waiting{font-size:10px;color:var(--muted);height:34px;display:flex;align-items:center}
+.offline .window-title{border-color:#ed858530}.offline .window-name{color:var(--red)}.offline-body{display:flex;flex-direction:column;justify-content:center;gap:8px;flex:1;min-height:200px}.offline-body strong{font-weight:400;color:var(--red);font-size:13px}.offline-body p{font-size:11px;color:var(--muted);max-width:240px}.offline-history{font-size:10px;color:var(--muted);padding-top:10px;border-top:1px solid var(--line)}
+#cards .info{border:1px solid var(--line);grid-column:1/-1}.bottom{padding-top:16px}.admin{font-size:11px}
+@media(prefers-reduced-motion:reduce){.server-card{transition:none}}
+@media(max-width:1050px){.overview{grid-template-columns:repeat(2,minmax(0,1fr))}.overview-item:nth-child(2){border-right:0}.overview-item:nth-child(-n+2){border-bottom:1px solid var(--line)}.hint{display:none}}
+@media(max-width:600px){.overview-item{padding:10px 12px}.overview-main{font-size:12px}.overview-sub{font-size:10px}.toolbar input{flex:1;width:130px}.view-toggle{margin-left:0}.view-toggle button{padding:6px 8px}.server-card{padding:14px;min-height:0}.window-name{font-size:13px}#card-sort{flex-wrap:wrap}#card-sort .card-count{font-size:10px}header{gap:10px}h1{font-size:17px}.brand{gap:7px}.brand-mark{width:24px;height:24px;font-size:16px}}
+
+/* Detail view additions (Komari port; same visual language, no external assets). */
+.detail-title{display:flex;align-items:center;gap:10px;min-width:0}
+.detail-title h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.back-link{flex:none;border:1px solid var(--line);padding:2px 9px;font-size:14px;line-height:1.5}
+.back-link:hover{color:var(--green);text-decoration:none}
+.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin:16px 0 4px}
+.chip{border:1px solid var(--line);background:#141815;padding:10px 12px;min-width:0}
+.chip-label{color:var(--muted);font-size:10px;letter-spacing:.06em;margin-bottom:3px}
+.chip-value{font-size:13px;overflow-wrap:anywhere}
+.chip-value .accent{color:var(--green)}
+.chip-sub{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.metric-title{font-size:11px;letter-spacing:.04em;margin-bottom:4px}
+.metric-line{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted)}
+.metric-line b{font-weight:400;color:var(--fg)}
+.range-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 12px}
+.range-bar .range-label{color:var(--muted);font-size:11px;letter-spacing:.03em}
+.range-bar button[aria-pressed=true]{color:var(--green);background:#85d9960d;box-shadow:inset 0 -1px var(--green)}
+.chart-panel{border:1px solid var(--line);background:#141815;padding:12px 14px;margin:0 0 14px}
+.chart-head{display:flex;gap:9px;align-items:center;color:var(--muted);font-size:10px;letter-spacing:.04em;margin-bottom:6px;flex-wrap:wrap}
+.chart-head .legend{margin-left:auto;display:flex;gap:12px;flex-wrap:wrap}
+.chart-head .legend span{white-space:nowrap}
+.chart-panel svg{width:100%;height:auto;display:block}
+.chart-empty{color:var(--muted);font-size:11px;padding:18px 2px}
+</style>
+<link rel="icon" type="image/x-icon" href="/favicon.ico"></head>
+<body>
+<div class="dashboard" id="view-list">
+<header><div class="brand"><span class="brand-mark" aria-hidden="true">N</span><h1 id="site-name">NodeScope</h1></div><span id="live" class="muted" role="status">● CONNECTING</span><a class="admin" href="/admin">Admin area &#x2197;&#xFE0E;</a></header>
+<div id="page-name"></div>
+<section id="overview" class="overview" aria-label="All monitors overview" hidden>
+<div class="overview-item"><span class="overview-label">MONITORS</span><div id="overview-nodes" class="overview-main">—</div><div id="overview-nodes-sub" class="overview-sub">—</div></div>
+<div class="overview-item"><span class="overview-label">CAPACITY</span><div id="overview-capacity" class="overview-main">—</div><div class="overview-sub">Online servers · cores / RAM</div></div>
+<div class="overview-item"><span class="overview-label">NETWORK / NOW</span><div id="overview-network" class="overview-main">—</div><div class="overview-sub">Combined receive / transmit</div></div>
+<div class="overview-item"><span class="overview-label">ALL-TIME TRAFFIC</span><div id="overview-traffic" class="overview-main">—</div><div class="overview-sub">Receive / transmit</div></div>
+</section>
+<div class="toolbar"><button id="refresh" type="button">Refresh</button><input type="search" placeholder="Filter by name…" aria-label="Filter monitors by name" id="filter"><span class="hint">Select a server for full statistics.</span><div class="view-toggle" role="group" aria-label="Monitor display mode"><button id="btn-view-list" type="button" aria-pressed="true" aria-controls="list" title="List view"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg>LIST</button><button id="btn-view-windows" type="button" aria-pressed="false" aria-controls="cards" title="Window view"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></svg>CARD</button></div></div>
+<div id="card-sort" hidden><label for="sort-field">SORT</label><select id="sort-field" aria-label="Sort windows"></select><button id="sort-direction" type="button">ASC ↑</button><span class="card-count">Live trends start when this page opens.</span></div>
+<div id="error" class="error" role="alert" hidden>Fetching data failed. Displayed values may be out of date.</div>
+<div id="list"><div class="loading">Loading monitors…</div></div>
+<div id="cards" aria-label="Server windows" hidden></div>
+<div id="empty-filter" hidden>No matching monitors.</div>
+<div class="bottom"><span id="count">MONITORS: —</span><span>REFRESH: 5s</span><span id="last"></span></div>
+
+<footer>Powered by <a href="https://ltstats.de">LTstats</a> · Theme for <a href="https://github.com/komari-monitor/komari">Komari</a></footer>
+</div>
+<div class="dashboard" id="view-detail" hidden>
+<header><div class="detail-title"><a class="back-link" href="/" aria-label="Back to monitor list">←</a><h1 id="detail-name">Statistics</h1><span id="detail-dot" class="status-dot" role="img" aria-label="Status"></span></div><a class="admin" href="/admin">Admin area &#x2197;&#xFE0E;</a></header>
+<div id="detail-error" class="error" role="alert" hidden>Fetching data failed. Displayed values may be out of date.</div>
+<div id="detail-body"><div class="loading">Loading statistics…</div></div>
+<footer>Powered by <a href="https://ltstats.de">LTstats</a> · Theme for <a href="https://github.com/komari-monitor/komari">Komari</a></footer>
+</div>
+<script>
+'use strict';
+// NodeScope for Komari: presentation layer kept from the LTstats NodeScope page,
+// data layer swapped to the Komari API (/api/public, /api/nodes, /api/rpc2).
+var $ = id => document.getElementById(id);
+var escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+var valid = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+var available = value => value !== -1 && value !== null && value !== undefined;
+var percent = (value,digits = 1) => valid(value) ? value.toFixed(digits) + '%' : '—';
+function formatBytes(value) {
+  if (!valid(value)) return '—';
+  var units = ['B','KB','MB','GB','TB','PB','EB'];
+  var i = value > 0 ? Math.min(units.length - 1, Math.max(0, Math.floor(Math.log(value)/Math.log(1024)))) : 0;
+  return (value / Math.pow(1024,i)).toFixed(i ? 1 : 0).replace(/\.0$/, '') + ' ' + units[i];
+}
+// Use a shared byte unit unless it would round a nonzero direction to zero.
+// suffix is '/s' for rates and '' for cumulative totals.
+function paired(a,b,left,right,suffix) {
+  if (!valid(a) || !valid(b)) return left + (valid(a) ? formatBytes(a) + suffix : '—') + ' ' + right + (valid(b) ? formatBytes(b) + suffix : '—');
+  var units = ['B','KB','MB','GB','TB','PB','EB'], max = Math.max(a,b);
+  var i = max > 0 ? Math.min(units.length - 1, Math.max(0, Math.floor(Math.log(max)/Math.log(1024)))) : 0;
+  var divisor = Math.pow(1024,i);
+  if ([a,b].some(value => value > 0 && value/divisor < .01)) return left+formatBytes(a)+suffix+' '+right+formatBytes(b)+suffix;
+  var fmt = value => (value/divisor).toFixed(i ? 2 : 0).replace(/\.?0+$/, '') || '0';
+  // Keep integer trailing zeros (10 B/s must not become 1 B/s).
+  if (!i) fmt = value => value.toFixed(0);
+  return left + fmt(a) + ' ' + right + fmt(b) + ' ' + units[i] + suffix;
+}
+function pairedRate(a,b,left,right) { return paired(a,b,left,right,'/s'); }
+function pairedBytes(a,b,left,right) { return paired(a,b,left,right,''); }
+function formatUptime(value) {
+  if (!valid(value)) return '—';
+  var days = Math.floor(value/86400), hours = Math.floor(value%86400/3600), minutes = Math.floor(value%3600/60);
+  return days ? days+'d '+hours+'h' : hours ? hours+'h '+minutes+'m' : minutes+'m';
+}
+function formatUptimeFull(value) {
+  if (!valid(value)) return '';
+  return Math.floor(value/86400)+'d '+Math.floor(value%86400/3600)+'h '+Math.floor(value%3600/60)+'m';
+}
+function compactCPU(value) {
+  if (!available(value)) return '—';
+  return String(value).replace(/\((R|TM)\)/gi,'')
+    .replace(/\s+\d+-Core\s+Processor.*$/i,'').replace(/\s+Processor\b/gi,'')
+    .replace(/\s+with\s+Radeon.*$/i,'').replace(/\s+@\s+.*$/,'').trim() || String(value);
+}
+function getColor(value,type) {
+  if (!valid(value)) return 'muted';
+  var limits = type === 'steal' ? [5,10] : type === 'iowait' ? [10,30] : [65,85];
+  return value < limits[0] ? 'green' : value < limits[1] ? 'orange' : 'red';
+}
+// Load has no percentage of its own; colour it by load relative to core count.
+function loadColor(load,cores) {
+  if (!valid(load) || !valid(cores) || cores <= 0) return 'muted';
+  return getColor(load/cores*100);
+}
+function pctOf(used,total) {
+  return valid(used) && valid(total) && total > 0 ? used/total*100 : null;
+}
+
+/* ---------------- Komari API layer ---------------- */
+async function fetchJSON(url) {
+  var response = await fetch(url);
+  if (response.status !== 200) throw new Error('HTTP '+response.status);
+  return response.json();
+}
+var rpcId = 0;
+async function rpc(method,params) {
+  var response = await fetch('/api/rpc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:++rpcId,method:method,params:params || {}})});
+  if (response.status !== 200) throw new Error('HTTP '+response.status);
+  var data = await response.json();
+  if (data.error) throw new Error(data.error.message || 'RPC error');
+  return data.result;
+}
+var siteInfo = {};
+var nodesByUuid = new Map();
+var statusByUuid = new Map();
+async function loadPublic() {
+  var data = await fetchJSON('/api/public');
+  siteInfo = (data && data.data) || {};
+  if (siteInfo.sitename) {
+    $('site-name').textContent = siteInfo.sitename;
+    document.title = siteInfo.sitename;
+  }
+  $('page-name').textContent = siteInfo.description || '';
+}
+async function loadNodes() {
+  var data = await fetchJSON('/api/nodes');
+  var list = (data && data.data) || [];
+  nodesByUuid = new Map(list.map(n => [n.uuid,n]));
+}
+async function loadStatus() {
+  var result = await rpc('common:getNodesLatestStatus',{});
+  statusByUuid = new Map(Object.entries(result || {}));
+}
+
+/* ---------------- List & card views ----------------
+   Komari has no iowait / steal / disk-IO rates: the LTstats IOWAIT% and STEAL%
+   columns are merged into LOAD, the IO column becomes cumulative TRAFFIC. */
+var monitors = [], sortColumn = 'name', sortDirection = 'asc', filter = '', pending = false;
+var viewMode = 'list', sampleHistory = new Map();
+var columns = [['name','NAME'],['cpu','CPU'],['cores','CORES'],['ram','RAM'],['uptime','UPTIME'],['cpuPct','CPU%'],['load','LOAD'],['ramPct','RAM%'],['swapPct','SWAP%'],['diskPct','DISK%'],['net','NET'],['traffic','TRAFFIC']];
+var sortFields = new Set(['name','cpu','cores','ram','uptime','cpuPct','load','ramPct','swapPct','diskPct','netIn','netOut','trafficDown','trafficUp']);
+
+function buildMonitors() {
+  monitors = [];
+  nodesByUuid.forEach(function(n) {
+    if (n.hidden) return;
+    var st = statusByUuid.get(n.uuid) || null;
+    var online = !!(st && st.online);
+    var row = {
+      uuid: n.uuid, name: available(n.name) && n.name !== '' ? String(n.name) : n.uuid,
+      cpuName: n.cpu_name, cores: n.cpu_cores,
+      ramTotal: n.mem_total, swapTotal: n.swap_total, diskTotal: n.disk_total,
+      kernel: n.kernel_version, os: n.os, online: online, offlineSeconds: null,
+      uptime: null, cpuPct: null, load: null, load5: null, load15: null,
+      ramPct: null, swapPct: null, diskPct: null,
+      netIn: null, netOut: null, trafficDown: null, trafficUp: null
+    };
+    if (online) {
+      row.uptime = valid(st.uptime) ? st.uptime : null;
+      row.cpuPct = valid(st.cpu) ? st.cpu : null;
+      row.load = valid(st.load) ? st.load : null;
+      row.load5 = valid(st.load5) ? st.load5 : null;
+      row.load15 = valid(st.load15) ? st.load15 : null;
+      row.ramPct = pctOf(st.ram, valid(st.ram_total) && st.ram_total > 0 ? st.ram_total : n.mem_total);
+      row.swapPct = pctOf(st.swap, valid(st.swap_total) && st.swap_total > 0 ? st.swap_total : n.swap_total);
+      row.diskPct = pctOf(st.disk, valid(st.disk_total) && st.disk_total > 0 ? st.disk_total : n.disk_total);
+      row.netIn = valid(st.net_in) ? st.net_in : null;
+      row.netOut = valid(st.net_out) ? st.net_out : null;
+      row.trafficDown = valid(st.net_total_down) ? st.net_total_down : null;
+      row.trafficUp = valid(st.net_total_up) ? st.net_total_up : null;
+    } else {
+      var updated = n.updated_at ? Date.parse(n.updated_at) : NaN;
+      row.offlineSeconds = Number.isFinite(updated) ? Math.max(0,(Date.now()-updated)/1000) : null;
+    }
+    monitors.push(row);
+  });
+}
+function sortValue(row,field) {
+  if (field === 'cpu') return available(row.cpuName) ? String(row.cpuName) : null;
+  if (field === 'ram') return valid(row.ramTotal) ? row.ramTotal : null;
+  var value = row[field];
+  return available(value) ? value : null;
+}
+function nameLink(row,offline) {
+  var state = offline ? offlineString(row.offlineSeconds) : 'Online';
+  return '<a class="name-link" href="/monitor/'+encodeURIComponent(row.uuid)+'" title="'+escapeHTML(state)+'"><span class="status-dot" role="img" aria-label="'+escapeHTML(state)+'"></span><span class="name-text">'+escapeHTML(row.name)+'</span></a>';
+}
+function offlineString(seconds) {
+  return !valid(seconds) ? 'Offline' : 'Offline for '+(seconds < 3600 ? Math.floor(seconds/60)+'m' : Math.floor(seconds/3600)+'h '+Math.floor(seconds%3600/60)+'m');
+}
+function monitorCell(row,key) {
+  if (key === 'name') return '<td>'+nameLink(row,false)+'</td>';
+  if (key === 'cpu') return '<td class="cpu" title="'+escapeHTML(available(row.cpuName) ? row.cpuName : '')+'">'+escapeHTML(compactCPU(row.cpuName))+'</td>';
+  if (key === 'cores') return '<td>'+(valid(row.cores) ? row.cores : '—')+'</td>';
+  if (key === 'ram') return '<td>'+formatBytes(row.ramTotal)+'</td>';
+  if (key === 'uptime') return '<td title="'+formatUptimeFull(row.uptime)+'">'+formatUptime(row.uptime)+'</td>';
+  if (key === 'cpuPct') return '<td class="'+getColor(row.cpuPct)+'">'+percent(row.cpuPct,2)+'</td>';
+  if (key === 'load') return '<td class="'+loadColor(row.load,row.cores)+'">'+(valid(row.load) ? row.load.toFixed(2) : '—')+'</td>';
+  if (key === 'ramPct') return '<td class="'+getColor(row.ramPct)+'">'+percent(row.ramPct,1)+'</td>';
+  if (key === 'swapPct') return '<td class="'+getColor(row.swapPct)+'">'+percent(row.swapPct,1)+'</td>';
+  if (key === 'diskPct') return '<td class="'+getColor(row.diskPct)+'">'+percent(row.diskPct,1)+'</td>';
+  if (key === 'net') return '<td class="rate">'+pairedRate(row.netIn,row.netOut,'↓','↑')+'</td>';
+  if (key === 'traffic') return '<td class="rate">'+pairedBytes(row.trafficDown,row.trafficUp,'↓','↑')+'</td>';
+  return '<td>—</td>';
+}
+function monitorInnerHTML(row) { return columns.map(([key]) => monitorCell(row,key)).join(''); }
+function monitorOfflineInnerHTML(row) {
+  return '<td>'+nameLink(row,true)+'</td><td class="offline-message" colspan="'+(columns.length-1)+'">'+offlineString(row.offlineSeconds)+'</td>';
+}
+function aggregateMonitors() {
+  var online = monitors.filter(r => r.online);
+  var agg = {online: online};
+  function sum(field) {
+    var values = online.map(r => r[field]).filter(valid);
+    return values.length ? values.reduce((a,b) => a+b,0) : null;
+  }
+  agg.cores = sum('cores'); agg.ramTotal = sum('ramTotal');
+  agg.netIn = sum('netIn'); agg.netOut = sum('netOut');
+  agg.trafficDown = sum('trafficDown'); agg.trafficUp = sum('trafficUp');
+  function plainAvg(field) {
+    var rows = online.filter(r => valid(r[field]));
+    return rows.length ? rows.reduce((s,r) => s+r[field],0)/rows.length : null;
+  }
+  // Capacity weighting is meaningful only if all included capacities are known.
+  function weighted(pctField,totalField) {
+    var rows = online.filter(r => valid(r[pctField]));
+    if (!rows.length) return null;
+    var useWeights = rows.every(r => valid(r[totalField]) && r[totalField] > 0);
+    var weights = rows.reduce((sum,r) => sum+(useWeights ? r[totalField] : 1),0);
+    return rows.reduce((sum,r) => sum+r[pctField]*(useWeights ? r[totalField] : 1),0)/weights;
+  }
+  agg.cpuPct = plainAvg('cpuPct'); agg.load = plainAvg('load');
+  agg.ramPct = weighted('ramPct','ramTotal');
+  agg.swapPct = weighted('swapPct','swapTotal');
+  agg.diskPct = weighted('diskPct','diskTotal');
+  return agg;
+}
+function calculateTotals() {
+  var agg = aggregateMonitors();
+  if (agg.online.length < 2) return '';
+  return '<tr>'+columns.map(([key]) => {
+    if (key === 'name') return '<td title="Totals / averages across all online monitors">TOTAL / AVG</td>';
+    if (key === 'cpu' || key === 'uptime') return '<td>—</td>';
+    if (key === 'cores') return '<td>'+(valid(agg.cores) ? agg.cores : '—')+'</td>';
+    if (key === 'ram') return '<td>'+formatBytes(agg.ramTotal)+'</td>';
+    if (key === 'cpuPct') return '<td class="'+getColor(agg.cpuPct)+'">'+percent(agg.cpuPct,2)+'</td>';
+    if (key === 'load') return '<td>'+(valid(agg.load) ? agg.load.toFixed(2) : '—')+'</td>';
+    if (key === 'ramPct') return '<td class="'+getColor(agg.ramPct)+'">'+percent(agg.ramPct,1)+'</td>';
+    if (key === 'swapPct') return '<td class="'+getColor(agg.swapPct)+'">'+percent(agg.swapPct,1)+'</td>';
+    if (key === 'diskPct') return '<td class="'+getColor(agg.diskPct)+'">'+percent(agg.diskPct,1)+'</td>';
+    if (key === 'net') return '<td class="rate">'+pairedRate(agg.netIn,agg.netOut,'↓','↑')+'</td>';
+    if (key === 'traffic') return '<td class="rate">'+pairedBytes(agg.trafficDown,agg.trafficUp,'↓','↑')+'</td>';
+    return '<td>—</td>';
+  }).join('')+'</tr>';
+}
+function sortButton(field,label) {
+  var names = {netIn:'network receive rate',netOut:'network transmit rate',trafficDown:'total download traffic',trafficUp:'total upload traffic',ram:'RAM capacity',cpuPct:'CPU usage',ramPct:'RAM usage',swapPct:'Swap usage',diskPct:'Disk usage'};
+  var description = 'Sort by '+(names[field] || label);
+  return '<button type="button" data-sort="'+field+'" title="'+escapeHTML(description)+'" aria-label="'+escapeHTML(description)+'">'+escapeHTML(label)+'</button>';
+}
+function headerHTML(key,label) {
+  var content;
+  if (key === 'net') content = '<span class="header-pair"><span>'+label+'</span>'+sortButton('netIn','↓')+sortButton('netOut','↑')+'</span>';
+  else if (key === 'traffic') content = '<span class="header-pair"><span>'+label+'</span>'+sortButton('trafficDown','↓')+sortButton('trafficUp','↑')+'</span>';
+  else content = sortButton(key,label);
+  return '<th scope="col" data-column="'+key+'">'+content+'</th>';
+}
+function displayMonitors() {
+  if (!monitors.length) { $('list').innerHTML = '<div class="info">No monitor data available.</div>'; return; }
+  $('list').innerHTML = '<table id="table" aria-label="Server monitoring"><thead><tr>'+columns.map(([key,label]) => headerHTML(key,label)).join('')+'</tr></thead><tbody>'+monitors.map(row => '<tr data-monitor="'+escapeHTML(row.uuid)+'"'+(row.online ? '' : ' class="offline"')+'>'+(row.online ? monitorInnerHTML(row) : monitorOfflineInnerHTML(row))+'</tr>').join('')+'</tbody><tfoot id="total">'+calculateTotals()+'</tfoot></table>';
+  sortTableDOM(); updateSortIndicators();
+}
+function updateTable() {
+  if (viewMode === 'windows') displayWindows(); else displayMonitors();
+}
+function setView(mode) {
+  if (!['list','windows'].includes(mode)) return;
+  viewMode = mode;
+  $('list').hidden = mode !== 'list'; $('cards').hidden = mode !== 'windows'; $('card-sort').hidden = mode !== 'windows';
+  $('btn-view-list').setAttribute('aria-pressed',String(mode === 'list'));
+  $('btn-view-windows').setAttribute('aria-pressed',String(mode === 'windows'));
+  // Render only the visible representation; switching uses cached data without API calls.
+  if (mode === 'list') $('cards').replaceChildren(); else $('list').replaceChildren();
+  updateTable(); applyFilter(); updateSortIndicators();
+}
+function recordSamples() {
+  var now = Date.now(), ids = new Set(monitors.map(r => r.uuid));
+  for (var id of sampleHistory.keys()) if (!ids.has(id)) sampleHistory.delete(id);
+  monitors.forEach(row => {
+    var id = row.uuid;
+    if (!row.online) { sampleHistory.delete(id); return; }
+    var samples = sampleHistory.get(id) || [];
+    // Drop cached field values immediately when the server stops exposing that field.
+    if (!valid(row.cpuPct)) samples.forEach(p => p.cpu = null);
+    if (!valid(row.ramPct)) samples.forEach(p => p.ram = null);
+    var point = {time:now,cpu:valid(row.cpuPct) ? row.cpuPct : null,ram:valid(row.ramPct) ? row.ramPct : null};
+    if (samples.length && now-samples.at(-1).time < 10000) samples[samples.length-1] = point;
+    else samples.push(point);
+    sampleHistory.set(id,samples.slice(-60));
+  });
+}
+function trendHTML(row) {
+  var points = sampleHistory.get(row.uuid) || [];
+  var hasTrend = ['cpu','ram'].some(field => points.filter(p => valid(p[field])).length >= 2);
+  var heading = '<div class="trend-head"><span>LIVE TREND</span><span class="legend"><span class="legend-cpu">CPU</span> / <span class="legend-ram">RAM</span></span></div>';
+  if (!hasTrend) return '<div class="trend">'+heading+'<div class="waiting">Waiting for live samples…</div></div>';
+  var range = Math.max(1,points.at(-1).time-points[0].time);
+  function path(field) {
+    var continuous = false, d = '';
+    points.forEach(p => {
+      if (!valid(p[field])) { continuous = false; return; }
+      var x = (3+(p.time-points[0].time)/range*294).toFixed(2), y = (36-Math.min(100,p[field])/100*32).toFixed(2);
+      d += (continuous ? 'L' : 'M')+x+','+y+' '; continuous = true;
+    }); return d;
+  }
+  return '<div class="trend" title="CPU and RAM samples collected since this page opened, at 5-second refresh intervals">'+heading+'<svg viewBox="0 0 300 40" preserveAspectRatio="none" role="img" aria-label="CPU and RAM live usage trend"><path d="M0 38H300" stroke="#29312c" fill="none"/><path d="'+path('cpu')+'" fill="none" stroke="#85d996" stroke-width="1.5" vector-effect="non-scaling-stroke"/><path d="'+path('ram')+'" fill="none" stroke="#80c9c1" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg></div>';
+}
+function usageHTML(name,value) {
+  var color = getColor(value), width = valid(value) ? Math.min(100,Math.max(0,value)) : 0;
+  return '<div class="usage-item"><div class="usage-head"><span>'+name+'</span><span class="'+color+'">'+percent(value,name === 'CPU' ? 2 : 1)+'</span></div><div class="usage-track" aria-hidden="true"><span class="usage-fill '+color+'" style="width:'+width+'%"></span></div></div>';
+}
+function windowHTML(row) {
+  var down = !row.online, href = '/monitor/'+encodeURIComponent(row.uuid);
+  var title = '<div class="window-title"><span class="status-dot" role="img" aria-label="'+(down ? 'Offline' : 'Online')+'"></span><span class="window-name">'+escapeHTML(row.name)+'</span><span class="window-open" aria-hidden="true"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M4 12 12 4M5 4h7v7"/></svg></span></div>';
+  var inner = down ? '<div class="offline-body"><strong>'+offlineString(row.offlineSeconds)+'</strong><p>Current readings are unavailable. Historical statistics remain accessible.</p></div><div class="offline-history">View historical statistics →</div>' :
+    '<div class="window-cpu" title="'+escapeHTML(available(row.cpuName) ? row.cpuName : '')+'">'+escapeHTML(compactCPU(row.cpuName))+'</div><dl class="window-meta"><div><dt>CORES</dt><dd>'+(valid(row.cores) ? row.cores : '—')+'</dd></div><div><dt>RAM</dt><dd>'+formatBytes(row.ramTotal)+'</dd></div><div><dt>UPTIME</dt><dd>'+formatUptime(row.uptime)+'</dd></div></dl><div class="usage-items">'+usageHTML('CPU',row.cpuPct)+usageHTML('RAM',row.ramPct)+usageHTML('DISK',row.diskPct)+'</div><div class="window-waits"><span>LOAD 1M <b>'+(valid(row.load) ? row.load.toFixed(2) : '—')+'</b></span><span>5M <b>'+(valid(row.load5) ? row.load5.toFixed(2) : '—')+'</b></span><span>15M <b>'+(valid(row.load15) ? row.load15.toFixed(2) : '—')+'</b></span></div><div class="window-rates"><div><span class="label">NET</span><span>'+pairedRate(row.netIn,row.netOut,'↓','↑')+'</span></div><div><span class="label">TRAFFIC</span><span>'+pairedBytes(row.trafficDown,row.trafficUp,'↓','↑')+'</span></div></div>'+trendHTML(row);
+  return '<a class="server-card'+(down ? ' offline' : '')+'" data-monitor="'+escapeHTML(row.uuid)+'" href="'+href+'">'+title+inner+'</a>';
+}
+function displayWindows() {
+  $('cards').innerHTML = monitors.length ? monitors.slice().sort(compareMonitors).map(windowHTML).join('') : '<div class="info">No monitor data available.</div>';
+  updateSortIndicators();
+}
+function updateOverview() {
+  var agg = aggregateMonitors(), online = agg.online.length;
+  $('overview').hidden = false;
+  $('overview-nodes').textContent = monitors.length+' servers';
+  $('overview-nodes-sub').textContent = online+' up · '+(monitors.length-online)+' down';
+  $('overview-nodes-sub').className = 'overview-sub'+(monitors.length-online > 0 ? ' red' : '');
+  $('overview-capacity').textContent = (valid(agg.cores) ? agg.cores : '—')+' cores · '+formatBytes(agg.ramTotal);
+  $('overview-network').textContent = pairedRate(agg.netIn,agg.netOut,'↓','↑');
+  $('overview-traffic').textContent = pairedBytes(agg.trafficDown,agg.trafficUp,'↓','↑');
+}
+function compareMonitors(a,b) {
+  var av = sortValue(a,sortColumn), bv = sortValue(b,sortColumn);
+  var missing = row => sortColumn !== 'name' && (!row.online || !available(sortValue(row,sortColumn)));
+  if (missing(a) !== missing(b)) return missing(a) ? 1 : -1;
+  var direction = sortDirection === 'asc' ? 1 : -1;
+  if (missing(a) && missing(b)) return String(a.name).localeCompare(String(b.name)) * direction;
+  var result = typeof av === 'string' ? av.localeCompare(String(bv)) : av-bv;
+  return (result || String(a.name).localeCompare(String(b.name))) * direction;
+}
+function sortTableDOM() {
+  var body = document.querySelector('#table tbody'); if (!body) return;
+  var rows = new Map(Array.from(body.querySelectorAll('tr[data-monitor]'),r => [r.dataset.monitor,r]));
+  monitors.slice().sort(compareMonitors).forEach(row => { var el = rows.get(row.uuid); if (el) body.appendChild(el); });
+}
+function updateSortIndicators() {
+  $('sort-field').value = sortColumn;
+  $('sort-direction').textContent = sortDirection === 'asc' ? 'ASC ↑' : 'DESC ↓';
+  $('sort-direction').setAttribute('aria-label',sortDirection === 'asc' ? 'Ascending order; switch to descending' : 'Descending order; switch to ascending');
+  document.querySelectorAll('[data-sort]').forEach(button => {
+    button.classList.remove('sort-asc','sort-desc');
+    if (button.dataset.sort === sortColumn) button.classList.add('sort-'+sortDirection);
+  });
+  document.querySelectorAll('th[data-column]').forEach(th => {
+    var key = th.dataset.column;
+    var active = key === sortColumn || (key === 'net' && (sortColumn === 'netIn' || sortColumn === 'netOut')) || (key === 'traffic' && (sortColumn === 'trafficDown' || sortColumn === 'trafficUp'));
+    th.setAttribute('aria-sort',active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none');
+  });
+}
+function updateHash() {
+  var hash = new URLSearchParams();
+  if (sortColumn !== 'name' || sortDirection !== 'asc') hash.set('sort',sortDirection+':'+sortColumn);
+  if (filter) hash.set('filter',filter);
+  history.replaceState(null,'',window.location.pathname+window.location.search+(hash.size ? '#'+hash.toString().replace('%3A',':') : ''));
+}
+function sortTable(field) {
+  if (!sortFields.has(field)) return;
+  sortDirection = sortColumn === field && sortDirection === 'asc' ? 'desc' : 'asc'; sortColumn = field;
+  if (viewMode === 'windows') { displayWindows(); applyFilter(); } else sortTableDOM();
+  updateSortIndicators(); updateHash();
+}
+function applyFilter() {
+  var names = new Map(monitors.map(r => [r.uuid,String(r.name).toLowerCase()])), shown = 0;
+  document.querySelectorAll('#list tbody tr[data-monitor], #cards .server-card[data-monitor]').forEach(group => {
+    group.hidden = !(names.get(group.dataset.monitor) || '').includes(filter);
+    if (!group.hidden) ++shown;
+  });
+  $('empty-filter').hidden = !monitors.length || shown > 0;
+  // As in the original page, totals describe the complete monitor set.
+  $('count').textContent = 'MONITORS: '+monitors.length+' | OFFLINE: '+monitors.filter(r => !r.online).length+(filter ? ' | SHOWN: '+shown : '');
+}
+function updateFilter(value) { filter = value.toLowerCase(); applyFilter(); updateHash(); }
+var tickCount = 0;
+async function fetchData() {
+  if (pending) return;
+  pending = true; $('refresh').setAttribute('aria-busy','true');
+  try {
+    // Static node info changes rarely; refresh it about once a minute.
+    if (tickCount % 12 === 0) await loadNodes();
+    await loadStatus();
+    buildMonitors();
+    recordSamples();
+    updateTable(); applyFilter(); updateOverview();
+    $('last').textContent = 'UPDATED: '+new Date().toLocaleTimeString();
+    $('error').hidden = true; $('live').textContent = '● LIVE'; $('live').className = 'live';
+  } catch (error) {
+    $('error').hidden = false; $('live').textContent = '● DISCONNECTED'; $('live').className = 'red';
+  } finally { pending = false; $('refresh').removeAttribute('aria-busy'); tickCount++; }
+}
+
+/* ---------------- Detail view (/monitor/<uuid>) ---------------- */
+var detailUuid = null, detailHours = 6, detailPending = false, detailNode = null;
+var CHART_COLORS = {cpu:'#85d996', load:'#e4bb72', ram:'#80c9c1', swap:'#7fa8c9', disk:'#b8a9e8', netIn:'#85d996', netOut:'#e4bb72'};
+var PING_COLORS = ['#85d996','#80c9c1','#e4bb72','#b8a9e8','#7fa8c9','#ed8585'];
+function statsOf(values) {
+  var nums = values.filter(valid);
+  if (!nums.length) return {avg: null, max: null};
+  return {avg: nums.reduce((a,b) => a+b,0)/nums.length, max: Math.max.apply(null,nums)};
+}
+function infoChip(label,valueHTML,sub) {
+  return '<div class="chip"><div class="chip-label">'+label+'</div><div class="chip-value">'+valueHTML+'</div>'+(sub ? '<div class="chip-sub">'+escapeHTML(sub)+'</div>' : '')+'</div>';
+}
+function metricChip(title,color,stats,current,fmt) {
+  function line(label,value) { return '<div class="metric-line"><span>'+label+'</span><b>'+fmt(value)+'</b></div>'; }
+  return '<div class="chip"><div class="metric-title" style="color:'+color+'">'+title+'</div>'+line('Average',stats.avg)+line('Maximum',stats.max)+line('Current',current)+'</div>';
+}
+function niceCeil(v) {
+  if (!(v > 0) || !Number.isFinite(v)) return 1;
+  var p = Math.pow(10, Math.floor(Math.log10(v))), n = v/p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+}
+function downsample(points,maxPoints) {
+  if (points.length <= maxPoints) return points;
+  var out = [], bucket = Math.ceil(points.length/maxPoints);
+  for (var i = 0; i < points.length; i += bucket) {
+    var slice = points.slice(i,i+bucket), nums = slice.map(p => p.v).filter(valid);
+    out.push({t: slice[Math.floor(slice.length/2)].t, v: nums.length ? nums.reduce((a,b) => a+b,0)/nums.length : null});
+  }
+  return out;
+}
+function fmtClock(t) {
+  var d = new Date(t);
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+// Inline SVG line chart; series: [{label, color, points:[{t, v}]}], no external libraries.
+function lineChart(series,options) {
+  var W = 920, H = 250, L = 62, R = 12, T = 10, B = 24, iw = W-L-R, ih = H-T-B;
+  var all = [];
+  series.forEach(s => s.points.forEach(p => { if (valid(p.v) && Number.isFinite(p.t)) all.push(p); }));
+  if (!all.length) return '<div class="chart-empty">No data in this time range.</div>';
+  var tMin = Math.min.apply(null,all.map(p => p.t)), tMax = Math.max.apply(null,all.map(p => p.t));
+  if (tMax <= tMin) tMax = tMin+1;
+  var vMaxData = Math.max.apply(null,all.map(p => p.v));
+  var vMax = options.maxY ? Math.min(options.maxY, Math.max(10, niceCeil(vMaxData*1.05))) : niceCeil(Math.max(vMaxData*1.1, 0.01));
+  var svg = '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+escapeHTML(options.title || 'Chart')+'">';
+  for (var i = 0; i <= 4; i++) {
+    var gy = (T+ih-ih*i/4).toFixed(1), gv = vMax*i/4;
+    svg += '<line x1="'+L+'" y1="'+gy+'" x2="'+(W-R)+'" y2="'+gy+'" stroke="#252c28" stroke-width="1"/>';
+    svg += '<text x="'+(L-6)+'" y="'+(Number(gy)+3)+'" text-anchor="end" font-size="10" fill="#87928c">'+escapeHTML(options.formatY(gv))+'</text>';
+  }
+  for (var j = 0; j <= 4; j++) {
+    var tx = L+iw*j/4, tt = tMin+(tMax-tMin)*j/4;
+    svg += '<text x="'+tx.toFixed(1)+'" y="'+(H-6)+'" text-anchor="'+(j === 0 ? 'start' : j === 4 ? 'end' : 'middle')+'" font-size="10" fill="#87928c">'+fmtClock(tt)+'</text>';
+  }
+  if (options.refLine && valid(options.refLine.v) && options.refLine.v < vMax) {
+    var ry = (T+ih-options.refLine.v/vMax*ih).toFixed(1);
+    svg += '<line x1="'+L+'" y1="'+ry+'" x2="'+(W-R)+'" y2="'+ry+'" stroke="#87928c" stroke-width="1" stroke-dasharray="4 4"/>';
+    svg += '<text x="'+(W-R)+'" y="'+(Number(ry)-4)+'" text-anchor="end" font-size="10" fill="#87928c">'+escapeHTML(options.refLine.label)+'</text>';
+  }
+  series.forEach(s => {
+    var sorted = s.points.filter(p => Number.isFinite(p.t)).slice().sort((a,b) => a.t-b.t);
+    var ds = downsample(sorted,480);
+    if (!ds.length) return;
+    var medianGap = ds.length > 1 ? (tMax-tMin)/(ds.length-1) : (tMax-tMin);
+    var d = '', continuous = false, lastT = null;
+    ds.forEach(p => {
+      if (!valid(p.v)) { continuous = false; return; }
+      if (lastT !== null && p.t-lastT > medianGap*4) continuous = false;
+      var x = (L+(p.t-tMin)/(tMax-tMin)*iw).toFixed(1), y = (T+ih-Math.min(p.v,vMax)/vMax*ih).toFixed(1);
+      d += (continuous ? 'L' : 'M')+x+','+y+' ';
+      continuous = true; lastT = p.t;
+    });
+    if (d) svg += '<path d="'+d+'" fill="none" stroke="'+s.color+'" stroke-width="1.5"/>';
+  });
+  return svg+'</svg>';
+}
+function chartPanel(title,series,options) {
+  options.title = title;
+  var legend = series.map(s => '<span><span style="color:'+s.color+'">●</span> '+escapeHTML(s.label)+'</span>').join('');
+  return '<div class="chart-panel"><div class="chart-head"><span>'+escapeHTML(title.toUpperCase())+'</span><span class="legend">'+legend+'</span></div>'+lineChart(series,options)+'</div>';
+}
+function recordPoints(records,fn) {
+  return records.map(r => {
+    var t = Date.parse(r.time), v = fn(r);
+    return {t: t, v: valid(v) ? v : null};
+  }).filter(p => Number.isFinite(p.t));
+}
+function renderDetail(records,pingResult) {
+  var n = detailNode, st = statusByUuid.get(detailUuid) || null;
+  var online = !!(st && st.online);
+  var row = monitors.find(r => r.uuid === detailUuid) || null;
+  $('detail-name').textContent = 'Statistics - '+(n.name || detailUuid);
+  $('detail-dot').style.background = online ? '' : 'var(--red)';
+  $('detail-dot').setAttribute('aria-label', online ? 'Online' : 'Offline');
+  document.title = 'Statistics - '+(n.name || detailUuid);
+  var fmtPct = v => valid(v) ? v.toFixed(2)+'%' : '—';
+  var fmtLoad = v => valid(v) ? v.toFixed(2) : '—';
+  var html = '<div class="chips">';
+  html += infoChip('ALL-TIME TRAFFIC','RX: '+(st ? formatBytes(st.net_total_down) : '—')+'<br>TX: '+(st ? formatBytes(st.net_total_up) : '—'),'Cumulative receive / transmit');
+  html += infoChip('KERNEL',escapeHTML(available(n.kernel_version) ? n.kernel_version : '—'),available(n.os) ? String(n.os) : '');
+  html += infoChip('CPU',escapeHTML(available(n.cpu_name) ? n.cpu_name : '—'),(valid(n.cpu_cores) ? n.cpu_cores : '—')+' core'+(n.cpu_cores === 1 ? '' : 's'));
+  html += infoChip('UPTIME',st ? formatUptime(st.uptime) : '—',online ? 'Online' : offlineString(row ? row.offlineSeconds : null));
+  html += infoChip('MEMORY','RAM: '+formatBytes(n.mem_total)+'<br>Swap: '+formatBytes(n.swap_total),'Total memory / swap');
+  html += infoChip('DISK',formatBytes(n.disk_total),'Total disk space');
+  html += '</div><div class="chips">';
+  var cpuStats = statsOf(records.map(r => valid(r.cpu) ? r.cpu : null));
+  var loadStats = statsOf(records.map(r => valid(r.load) ? r.load : null));
+  var ramStats = statsOf(records.map(r => pctOf(r.ram,n.mem_total)));
+  var swapStats = statsOf(records.map(r => pctOf(r.swap,n.swap_total)));
+  var diskStats = statsOf(records.map(r => pctOf(r.disk,n.disk_total)));
+  html += metricChip('CPU',CHART_COLORS.cpu,cpuStats,row ? row.cpuPct : null,fmtPct);
+  html += metricChip('LOAD',CHART_COLORS.load,loadStats,row ? row.load : null,fmtLoad);
+  html += metricChip('RAM',CHART_COLORS.ram,ramStats,row ? row.ramPct : null,fmtPct);
+  html += metricChip('SWAP',CHART_COLORS.swap,swapStats,row ? row.swapPct : null,fmtPct);
+  html += metricChip('DISK',CHART_COLORS.disk,diskStats,row ? row.diskPct : null,fmtPct);
+  html += '</div>';
+  var ranges = [1,3,6,12,24];
+  html += '<div class="range-bar"><span class="range-label">RANGE</span>'+ranges.map(h => '<button type="button" data-hours="'+h+'" aria-pressed="'+String(h === detailHours)+'">'+h+' hours</button>').join('')+'</div>';
+  var usageSeries = [
+    {label:'CPU', color:CHART_COLORS.cpu, points:recordPoints(records,r => valid(r.cpu) ? r.cpu : null)},
+    {label:'RAM', color:CHART_COLORS.ram, points:recordPoints(records,r => pctOf(r.ram,n.mem_total))},
+    {label:'Swap', color:CHART_COLORS.swap, points:recordPoints(records,r => pctOf(r.swap,n.swap_total))},
+    {label:'Disk', color:CHART_COLORS.disk, points:recordPoints(records,r => pctOf(r.disk,n.disk_total))}
+  ].filter(s => s.points.some(p => valid(p.v)));
+  html += chartPanel('Usage (%)',usageSeries,{maxY:100, formatY: v => v.toFixed(0)+'%'});
+  var netSeries = [
+    {label:'Download', color:CHART_COLORS.netIn, points:recordPoints(records,r => valid(r.net_in) ? r.net_in : null)},
+    {label:'Upload', color:CHART_COLORS.netOut, points:recordPoints(records,r => valid(r.net_out) ? r.net_out : null)}
+  ].filter(s => s.points.some(p => valid(p.v)));
+  html += chartPanel('Network Usage',netSeries,{formatY: v => formatBytes(v)+'/s'});
+  var loadSeries = [{label:'Load', color:CHART_COLORS.load, points:recordPoints(records,r => valid(r.load) ? r.load : null)}].filter(s => s.points.some(p => valid(p.v)));
+  html += chartPanel('Load',loadSeries,{formatY: v => (Math.round(v*10)/10).toString(), refLine: valid(n.cpu_cores) && n.cpu_cores > 0 ? {v: n.cpu_cores, label: n.cpu_cores+' cores'} : null});
+  // Latency chart only when the node actually has ping tasks.
+  if (pingResult && Array.isArray(pingResult.tasks) && pingResult.tasks.length) {
+    var pingRecords = pingResult.records || {};
+    var pingSeries = [];
+    pingResult.tasks.forEach(function(task,idx) {
+      var arr = [];
+      if (Array.isArray(pingRecords)) arr = pingRecords.filter(r => String(r.task_id) === String(task.id) || String(r.task) === String(task.id));
+      else if (Array.isArray(pingRecords[task.id])) arr = pingRecords[task.id];
+      else if (Array.isArray(pingRecords[String(task.id)])) arr = pingRecords[String(task.id)];
+      var pts = arr.map(r => {
+        var t = Date.parse(r.time);
+        return {t: t, v: valid(r.value) ? r.value : (valid(r.latency) ? r.latency : null)};
+      }).filter(p => Number.isFinite(p.t));
+      if (pts.some(p => valid(p.v))) pingSeries.push({label: available(task.name) && task.name !== '' ? String(task.name) : 'Task '+task.id, color: PING_COLORS[idx % PING_COLORS.length], points: pts});
+    });
+    if (pingSeries.length) html += chartPanel('Latency',pingSeries,{formatY: v => v.toFixed(0)+' ms'});
+  }
+  $('detail-body').innerHTML = html;
+}
+async function loadDetail() {
+  if (detailPending) return;
+  detailPending = true;
+  try {
+    await loadNodes();
+    detailNode = nodesByUuid.get(detailUuid) || null;
+    if (!detailNode) { $('detail-body').innerHTML = '<div class="info">Monitor not found.</div>'; return; }
+    await loadStatus();
+    buildMonitors();
+    var loadResult = await rpc('common:getRecords',{uuid: detailUuid, type: 'load', hours: detailHours});
+    var records = (loadResult && loadResult.records && loadResult.records[detailUuid]) || [];
+    var pingResult = null;
+    try { pingResult = await rpc('common:getRecords',{uuid: detailUuid, type: 'ping', hours: detailHours}); } catch (e) { pingResult = null; }
+    renderDetail(records,pingResult);
+    $('detail-error').hidden = true;
+  } catch (error) {
+    $('detail-error').hidden = false;
+    if (!detailNode) $('detail-body').innerHTML = '<div class="info">Failed to load monitor data.</div>';
+  } finally { detailPending = false; }
+}
+
+/* ---------------- Routing & init ---------------- */
+function parseMonitorRoute() {
+  var m = window.location.pathname.match(/\/monitor\/([^/?#]+)/);
+  if (m) return decodeURIComponent(m[1]);
+  var h = window.location.hash.match(/^#\/monitor\/([^&?]+)/);
+  if (h) return decodeURIComponent(h[1]);
+  return null;
+}
+function initList() {
+  var hash = new URLSearchParams(window.location.hash.slice(1));
+  var match = /^(asc|desc):([A-Za-z]+)$/.exec(hash.get('sort') || '');
+  if (match && sortFields.has(match[2])) { sortDirection = match[1]; sortColumn = match[2]; }
+  filter = (hash.get('filter') || '').toLowerCase(); $('filter').value = hash.get('filter') || '';
+  $('filter').addEventListener('input',event => updateFilter(event.target.value));
+  $('refresh').addEventListener('click',fetchData);
+  $('btn-view-list').addEventListener('click',() => setView('list'));
+  $('btn-view-windows').addEventListener('click',() => setView('windows'));
+  var choices = [['name','Name'],['cpu','CPU model'],['cores','Cores'],['ram','RAM capacity'],['uptime','Uptime'],['cpuPct','CPU usage'],['load','Load'],['ramPct','RAM usage'],['swapPct','Swap usage'],['diskPct','Disk usage'],['netIn','Network RX'],['netOut','Network TX'],['trafficDown','Traffic download'],['trafficUp','Traffic upload']];
+  if (!choices.some(([field]) => field === sortColumn)) choices.push([sortColumn,'Saved sort field']);
+  $('sort-field').innerHTML = choices.map(([field,label]) => '<option value="'+field+'">'+label+'</option>').join('');
+  $('sort-field').addEventListener('change',event => {
+    sortColumn = event.target.value; sortDirection = 'asc';
+    displayWindows(); applyFilter(); updateHash();
+  });
+  $('sort-direction').addEventListener('click',() => sortTable(sortColumn));
+  updateSortIndicators();
+  $('list').addEventListener('click',event => { var button = event.target.closest('button[data-sort]'); if (button) sortTable(button.dataset.sort); });
+  loadPublic().catch(() => {});
+  fetchData();
+  setInterval(() => { if (document.visibilityState !== 'hidden') fetchData(); },5000);
+  document.addEventListener('visibilitychange',() => { if (document.visibilityState !== 'hidden') fetchData(); });
+  document.addEventListener('keydown',event => { if (event.key === 'F5') { event.preventDefault(); fetchData(); } });
+}
+function initDetail(uuid) {
+  detailUuid = uuid;
+  $('view-list').hidden = true;
+  $('view-detail').hidden = false;
+  $('detail-body').addEventListener('click',event => {
+    var button = event.target.closest('button[data-hours]');
+    if (button) { detailHours = Number(button.dataset.hours); loadDetail(); }
+  });
+  loadPublic().catch(() => {});
+  loadDetail();
+  setInterval(() => { if (document.visibilityState !== 'hidden') loadDetail(); },60000);
+  document.addEventListener('visibilitychange',() => { if (document.visibilityState !== 'hidden') loadDetail(); });
+}
+document.addEventListener('DOMContentLoaded',() => {
+  var uuid = parseMonitorRoute();
+  if (uuid) initDetail(uuid); else initList();
+});
+</script>
+</body>
+</html>
