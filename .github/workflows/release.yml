@@ -1,0 +1,44 @@
+name: Build theme package
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zip theme
+        run: |
+          VERSION=$(python3 -c "import json;print(json.load(open('komari-theme.json'))['version'])")
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          PKG="komari-theme-nodescope-ltstats-v${VERSION}.zip"
+          echo "PKG=$PKG" >> "$GITHUB_ENV"
+          zip -r "$PKG" komari-theme.json dist
+          unzip -l "$PKG"
+
+      - name: Publish rolling release (main branch)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          gh release delete latest --yes || true
+          gh release create latest "$PKG" \
+            --title "NodeScope (latest build)" \
+            --notes "Latest build from the main branch. Theme version: ${VERSION}. Download the zip asset attached to this release and import it in Komari (theme management -> import), then switch to NodeScope."
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Publish version release (tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          gh release create "${GITHUB_REF_NAME}" "$PKG" \
+            --title "NodeScope ${GITHUB_REF_NAME}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
