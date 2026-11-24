@@ -13,6 +13,20 @@ An LTstats-style theme for [Komari Monitor](https://github.com/komari-monitor/ko
 - **指标筛选**：除按名称过滤外，可按 CPU% / RAM% 占用率下限与运行时长下限（天）筛选节点，列表与卡片视图同时生效；排序、名称与指标条件都会写入 URL hash，可直接分享带条件的链接
 - 百分比按阈值着色（绿 < 65% ≤ 琥珀 < 85% ≤ 红），支持按名称过滤、排序状态写入 URL hash
 
+## 主题设置 / Theme settings
+
+主题在 `komari-theme.json` 中声明了 Komari 托管配置（需 Komari ≥ 1.0.5）：启用主题后，在管理后台的主题设置里即可调整 LATENCY 列，无需改代码。
+
+The theme declares Komari managed configuration (Komari ≥ 1.0.5) in `komari-theme.json`; after enabling the theme, adjust the LATENCY column from the admin panel's theme settings — no code edits needed.
+
+| 设置项 / Key | 说明 |
+| --- | --- |
+| 延迟取值方式 `latency_mode` | `avg` 该节点全部测速任务最新值的平均（默认）；`primary` 只显示下方选定的主任务；`latest` 最近一条真实测速记录；`window` 时间窗口内真实记录的平均 |
+| 主显示任务 `latency_primary_task` | `primary` 模式下生效（取第一个选中的任务）；没有该任务的节点回退到 `avg` |
+| 窗口时长 `latency_window_minutes` | `window` 模式下生效，1–60 分钟，默认 10 |
+| 绿色阈值 `latency_green_below` | 延迟低于此值显示绿点，默认 100（ms） |
+| 黄色阈值 `latency_amber_below` | 延迟低于此值显示黄点、否则红点，默认 200（ms） |
+
 ## 安装 / Install
 
 **方法一（推荐）**：到 [Releases](https://github.com/troublessh/komari-theme-nodescope-ltstats/releases) 下载 `komari-theme-nodescope-ltstats-v1.0.1.zip`，在 Komari 后台的主题管理里导入，然后切换到 NodeScope。
